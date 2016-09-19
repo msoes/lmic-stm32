@@ -1,0 +1,5 @@
+define hello_load
+       monitor reset halt
+       load ./build/hello.out
+       cont
+end

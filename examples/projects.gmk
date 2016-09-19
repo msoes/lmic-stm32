@@ -1,0 +1,80 @@
+# GNU TOOLCHAIN Configuration
+
+GNU = ~/3rd/gcc-arm-none-eabi-4_9-2015q3/
+CC  = ${GNU}/bin/arm-none-eabi-gcc
+AS  = ${GNU}/bin/arm-none-eabi-as
+LN  = ${GNU}/bin/arm-none-eabi-gcc
+HEX = ${GNU}/bin/arm-none-eabi-objcopy -O ihex
+BIN = ${GNU}/bin/arm-none-eabi-objcopy -O binary
+
+# OpenOCD
+OPENOCD := /opt/openocd-0.9.0/bin/openocd
+
+
+LINKER_SCRIPT :=  ../../stm32/STM32L152VB_FLASH.ld
+
+CMSIS_INC = ../../stm32/CMSIS/Include
+define CMSIS_MSG
+ERROR: CMSIS Library missing: $(CMSIS_INC)
+## CMSIS: Cortex Microcontroller Software Interface Standard
+## CMSIS Library can be obtained from the STM32L1xx standard peripherals library
+## Download URL: www.st.com/web/catalog/tools/FM147/CL1794/SC961/SS1743/PF257913
+endef
+ifeq (,$(wildcard $(CMSIS_INC)))
+$(error $(CMSIS_MSG))
+endif
+
+
+INC = $(CMSIS_INC)
+
+CPU    = -mcpu=cortex-m3 -mthumb
+CCOPTS = $(CPU) -c -std=gnu99  -g
+CCOPTS += -fno-common -fmessage-length=0 -fno-builtin -fno-exceptions -ffunction-sections -fdata-sections -fomit-frame-pointer -MMD -MP
+ASOPTS = $(CPU)
+LNOPTS = -g $(CPU) -Wl,--gc-sections -T$(LINKER_SCRIPT)
+
+
+
+# LMIC CONFIG
+LMICCFG += -DSTM32L1XX_MD -DCFG_DEBUG -DCFG_eu868 -DCFG_wimod_board -DCFG_sx1272_radio -DCFG_lmic_clib
+
+LMICDIR  = ../../lmic
+HALDIR   = ../../stm32
+TOOLSDIR   = ../../tools
+BUILDDIR = build
+
+# RULES
+SRCS = $(notdir $(wildcard ${LMICDIR}/*.c ${HALDIR}/*.c ${HALDIR}/*.s *.c))
+OBJS = $(patsubst %, ${BUILDDIR}/%.o, $(basename ${SRCS}))
+
+VPATH = ${LMICDIR} ${HALDIR} .
+
+${BUILDDIR}/%.o: %.c | ${BUILDDIR}
+	${CC} ${CCOPTS} ${LMICCFG} -I${INC} -I${LMICDIR} -I${HALDIR} $< -o$@
+
+${BUILDDIR}/%.o: %.s | ${BUILDDIR}
+	${AS} ${ASOPTS} -I${INC} $< -o $@ 
+
+${BUILDDIR}/%.out: ${OBJS}
+	${LN} ${LNOPTS} -o $@ $^
+
+${BUILDDIR}/%.hex: ${BUILDDIR}/%.out
+	${HEX} $< ${HEXOPTS} $@
+
+${BUILDDIR}/%.bin: ${BUILDDIR}/%.out
+	${BIN} $< ${HEXOPTS} $@
+
+all: ${BUILDDIR}/$(notdir ${CURDIR}).bin ${BUILDDIR}/$(notdir ${CURDIR}).hex
+
+clean:
+	rm -rf ${BUILDDIR} Debug RTE settings *.dep *.bak *.sfr *.map *.uvguix.*
+
+load: ${BUILDDIR}/$(notdir ${CURDIR}).bin
+	$(OPENOCD) -f $(TOOLSDIR)/openocd/wimod.cfg  -f $(TOOLSDIR)/openocd/flash.cfg -c "flash_binary $<"
+
+${BUILDDIR}:
+	mkdir $@
+
+.PHONY: all clean
+
+.SECONDARY:
