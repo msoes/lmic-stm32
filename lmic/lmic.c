@@ -554,10 +554,9 @@ static const u4_t iniChannelFreq[NUM_JOIN_CHANNELS+NUM_OPERATIONAL_CHANNELS] = {
     
     // Default operational frequencies (1%)
     EU868_F1|BAND_CENTI, EU868_F2|BAND_CENTI, EU868_F3|BAND_CENTI,
-
-
-
 };
+
+
 
 static void initDefaultChannels (bit_t join) {
     os_clearMem(&LMIC.channelFreq, sizeof(LMIC.channelFreq));
@@ -702,11 +701,11 @@ static void setBcnRxParams (void) {
 #define setRx1Params() /*LMIC.freq/rps remain unchanged*/
 
 static void initJoinLoop (void) {
-#if CFG_TxContinuousMode
+    //#if CFG_TxContinuousMode
   LMIC.txChnl = 0;
-#else
-    LMIC.txChnl = os_getRndU1() % 6;
-#endif
+  //#else
+      //LMIC.txChnl = os_getRndU1() % NUM_JOIN_CHANNELS;
+  //#endif
     LMIC.adrTxPow = 14;
     setDrJoin(DRCHG_SET, DR_SF7);
     initDefaultChannels(1);
@@ -715,20 +714,32 @@ static void initJoinLoop (void) {
 }
 
 
-static ostime_t nextJoinState (void) {
+static u1_t nextJoinState (void) {
     u1_t failed = 0;
 
-    // Try 869.x and then 864.x with same DR
-    // If both fail try next lower datarate
-    if( ++LMIC.txChnl == 6 )
-        LMIC.txChnl = 0;
+    // Try datarate on all frequencies twice, if that fails, lower datarate
+    //debug_str("LMIC.txCnt:");
+    //debug_int(LMIC.txCnt);
+    //debug_char('\n');
     if( (++LMIC.txCnt & 1) == 0 ) {
-        // Lower DR every 2nd try (having tried 868.x and 864.x with the same DR)
-        if( LMIC.datarate == DR_SF12 )
-            failed = 1; // we have tried all DR - signal EV_JOIN_FAILED
-        else
-            setDrJoin(DRCHG_NOJACC, decDR((dr_t)LMIC.datarate));
+        //debug_str("ch:");
+        //debug_int(LMIC.txChnl);
+        //debug_char('\n');
+        if( ++LMIC.txChnl == NUM_JOIN_CHANNELS ) {
+            LMIC.txChnl = 0;
+            //debug_str("ch ovflw\n");
+            if( LMIC.datarate == DR_SF12 ) {
+                failed = 1; // we have tried all freqs on all DR - signal EV_JOIN_FAILED
+                //debug_str("join err\n");
+            } else {
+                setDrJoin(DRCHG_NOJACC, decDR((dr_t)LMIC.datarate));
+                //debug_str("adapt dr:");
+                //debug_int(LMIC.datarate);
+                //debug_char('\n');
+            }
+        }
     }
+    
     // Clear NEXTCHNL because join state engine controls channel hopping
     LMIC.opmode &= ~OP_NEXTCHNL;
     // Move txend to randomize synchronized concurrent joins.
@@ -871,7 +882,7 @@ static void initJoinLoop (void) {
     setDrJoin(DRCHG_SET, DR_SF7);
 }
 
-static ostime_t nextJoinState (void) {
+static u1_t nextJoinState (void) {
     // Try the following:
     //   SF7/8/9/10  on a random channel 0..63
     //   SF8C        on a random channel 64..71
@@ -1357,16 +1368,16 @@ static bit_t processJoinAccept (void) {
             return 1;
         }
         LMIC.opmode &= ~OP_TXRXPEND;
-        ostime_t delay = nextJoinState();
+        u1_t failed = nextJoinState();
         EV(devCond, DEBUG, (e_.reason = EV::devCond_t::NO_JACC,
                             e_.eui    = MAIN::CDEV->getEui(),
                             e_.info   = LMIC.datarate|DR_PAGE,
-                            e_.info2  = osticks2ms(delay)));
+                            e_.info2  = failed)); //osticks2ms(delay)));
         // Build next JOIN REQUEST with next engineUpdate call
         // Optionally, report join failed.
         // Both after a random/chosen amount of ticks.
-        os_setTimedCallback(&LMIC.osjob, os_getTime()+delay,
-                            (delay&1) != 0
+        os_setTimedCallback(&LMIC.osjob, os_getTime(), //+delay,
+                            failed //(&1) != 0
                             ? FUNC_ADDR(onJoinFailed)      // one JOIN iteration done and failed
                             : FUNC_ADDR(runEngineUpdate)); // next step to be delayed
         return 1;
