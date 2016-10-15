@@ -14,16 +14,19 @@ Building
 
 For building and flashing, the GNU ARM cross compiler toolchain and OpenOCD are sufficient.
 
-Enter the examples directory and edit projects.gmk for correct path to the GNU tools and
-OpenOCD.
+Enter the examples directory and edit projects.gmk for correct path to the GNU tools.
 
-To build the modem for instance, enter examples/modem and type 'make'.
+To build the modem for instance, enter examples/modem and type 'make'. The built firmware
+modem.hex and modem.bin can be found in the build folder.
 
 To flash the modem on an IMST board, enter 'script' folder and type:
-> ./flash.sh ../examples/modem/build/modem.hex 
+> ./flash.sh ./stlink-adapter2.cfg ./../examples/modem/build/modem.hex 
+where you have to adapt 'stlink-adapter2.cfg' to correctly identify
+your stlink adapter.
 
 
-
+DOCs:
+-----
 
 For more information, follow the documentation in the 'doc' folder.
 

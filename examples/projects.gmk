@@ -7,9 +7,6 @@ LN  = ${GNU}/bin/arm-none-eabi-gcc
 HEX = ${GNU}/bin/arm-none-eabi-objcopy -O ihex
 BIN = ${GNU}/bin/arm-none-eabi-objcopy -O binary
 
-# OpenOCD
-OPENOCD := /opt/openocd-0.9.0/bin/openocd
-
 
 LINKER_SCRIPT :=  ../../stm32/STM32L152VB_FLASH.ld
 
@@ -42,7 +39,6 @@ LMICCFG += -DCFG_lib -DCFG_iobuf -DCFG_rb -DCFG_lfsr113 -DCFG_crc
 
 LMICDIR  = ../../lmic
 HALDIR   = ../../stm32
-TOOLSDIR   = ../../tools
 BUILDDIR = build
 
 # RULES
@@ -71,8 +67,6 @@ all: ${BUILDDIR}/$(notdir ${CURDIR}).bin ${BUILDDIR}/$(notdir ${CURDIR}).hex
 clean:
 	rm -rf ${BUILDDIR} Debug RTE settings *.dep *.bak *.sfr *.map *.uvguix.*
 
-load: ${BUILDDIR}/$(notdir ${CURDIR}).bin
-	$(OPENOCD) -f $(TOOLSDIR)/openocd/wimod.cfg  -f $(TOOLSDIR)/openocd/flash.cfg -c "flash_binary $<"
 
 ${BUILDDIR}:
 	mkdir $@
