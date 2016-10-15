@@ -36,7 +36,9 @@ LNOPTS = -g $(CPU) -Wl,--gc-sections -T$(LINKER_SCRIPT)
 
 
 # LMIC CONFIG
-LMICCFG += -DSTM32L1XX_MD -DCFG_DEBUG -DCFG_eu868 -DCFG_wimod_board -DCFG_sx1272_radio -DCFG_lmic_clib
+LMICCFG += -DSTM32L1XX_MD -DCFG_DEBUG -DCFG_eu868 -DCFG_wimod_board -DCFG_sx1272_radio
+LMICCFG += -DCFG_lib -DCFG_iobuf -DCFG_rb -DCFG_lfsr113 -DCFG_crc
+
 
 LMICDIR  = ../../lmic
 HALDIR   = ../../stm32

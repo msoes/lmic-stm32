@@ -718,24 +718,13 @@ static u1_t nextJoinState (void) {
     u1_t failed = 0;
 
     // Try datarate on all frequencies twice, if that fails, lower datarate
-    //debug_str("LMIC.txCnt:");
-    //debug_int(LMIC.txCnt);
-    //debug_char('\n');
     if( (++LMIC.txCnt & 1) == 0 ) {
-        //debug_str("ch:");
-        //debug_int(LMIC.txChnl);
-        //debug_char('\n');
         if( ++LMIC.txChnl == NUM_JOIN_CHANNELS ) {
             LMIC.txChnl = 0;
-            //debug_str("ch ovflw\n");
             if( LMIC.datarate == DR_SF12 ) {
                 failed = 1; // we have tried all freqs on all DR - signal EV_JOIN_FAILED
-                //debug_str("join err\n");
             } else {
                 setDrJoin(DRCHG_NOJACC, decDR((dr_t)LMIC.datarate));
-                //debug_str("adapt dr:");
-                //debug_int(LMIC.datarate);
-                //debug_char('\n');
             }
         }
     }

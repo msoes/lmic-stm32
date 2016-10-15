@@ -4,8 +4,19 @@ THISDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 TOPDIR=$THISDIR/../..
 
-FW_PATH=$(realpath $1)
 
-openocd -f ./imst.cfg  -f ./flash.cfg -c "flash_binary $FW_PATH"
+if [ ! -f "$1" ]; then
+    echo "Configuration not found!"
+    exit 1
+fi
+CFG_PATH=$(realpath $1)
+
+if [ ! -f "$2" ]; then
+    echo "Firmware not found!"
+    exit 1
+fi
+FW_PATH=$(realpath $2)
+
+openocd -f $CFG_PATH  -f ./flash.cfg -c "flash_binary $FW_PATH"
 
 

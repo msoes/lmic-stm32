@@ -121,14 +121,5 @@ void usart_startrx (void);
 void leds_init (void);
 void leds_set (u1_t id, u1_t state);
 
-u1_t gethex (u1_t* dst, const u1_t* src, u2_t len);
-u1_t puthex (u1_t* dst, const u1_t* src, u1_t len);
-u1_t int2hex (u1_t* dst, u4_t v);
-u1_t hex2int (u4_t* n, const u1_t* src, u1_t len);
-u1_t dec2int (u4_t* n, const u1_t* src, u1_t len);
-void reverse (u1_t* dst, const u1_t* src, u1_t len);
-u1_t tolower (u1_t c);
-u1_t toupper (u1_t c);
 
-u1_t cpystr (u1_t* dst, const char* src);
-u1_t cmpstr (u1_t* buf, u1_t len, char* str);
+

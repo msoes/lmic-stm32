@@ -7,6 +7,7 @@ echo $THISDIR
 CFG_NAME=$1
 if [ -z "$CFG_NAME" ]; then
     echo "No imst config supplied!"
+    exit 1
 fi
 
 

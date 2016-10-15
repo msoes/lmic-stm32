@@ -163,7 +163,7 @@ void EXTI_IRQHandler () {
 #endif // CFG_EXTI_IRQ_HANDLER
 }
 
-#if CFG_lmic_clib
+
 void EXTI0_IRQHandler () {
     EXTI_IRQHandler();
 }
@@ -191,7 +191,7 @@ void EXTI9_5_IRQHandler () {
 void EXTI15_10_IRQHandler () {
     EXTI_IRQHandler();
 }
-#endif // CFG_lmic_clib
+
 
 // -----------------------------------------------------------------------------
 // SPI
@@ -228,7 +228,7 @@ u1_t hal_spi (u1_t out) {
     return SPI1->DR; // in
 }
 
-#ifdef CFG_lmic_clib
+
 
 // -----------------------------------------------------------------------------
 // TIME
@@ -360,4 +360,4 @@ void hal_failed () {
     while(1);
 }
 
-#endif // CFG_lmic_clib
+

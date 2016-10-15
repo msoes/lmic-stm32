@@ -27,6 +27,7 @@
 
 #include "modem.h"
 #include "hw.h"
+#include "lib.h"
 
 //////////////////////////////////////////////////
 // CONFIGURATION (WILL BE PATCHED)
