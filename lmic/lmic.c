@@ -592,11 +592,13 @@ static void initDefaultChannels (bit_t join) {
     LMIC.bands[BAND_DECI ].avail = os_getTime();
 
     // for fast join, use temporarily 100% bands 
-    if (join && LMIC.fastJoinMode) {
+#ifdef CFG_fast_join
+    if (join) {
         LMIC.bands[BAND_MILLI].txcap    = 1; 
         LMIC.bands[BAND_CENTI].txcap    = 1; 
-        LMIC.bands[BAND_DECI].txcap    = 1; 
+        LMIC.bands[BAND_DECI].txcap     = 1; 
     }
+#endif
 }
 
 bit_t LMIC_setupBand (u1_t bandidx, s1_t txpow, u2_t txcap) {
@@ -729,12 +731,15 @@ static u1_t nextJoinState (void) {
         if( ++LMIC.txChnl == NUM_JOIN_CHANNELS ) {
             LMIC.txChnl = 0;
             if( LMIC.datarate == DR_SF12 ) {
+                LMIC.datarate = DR_SF10;
                 failed = 1; // we have tried all freqs on all DR - signal EV_JOIN_FAILED
             } else {
                 setDrJoin(DRCHG_NOJACC, decDR((dr_t)LMIC.datarate));
             }
         }
     }
+
+    //DBG_PRINTF("nextJoinState: ch %d, dr %d\n", LMIC.txChnl, LMIC.datarate);
 
     // Clear NEXTCHNL because join state engine controls channel hopping
     LMIC.opmode &= ~OP_NEXTCHNL;
@@ -746,12 +751,14 @@ static u1_t nextJoinState (void) {
         time = LMIC.bands[BAND_MILLI].avail;
     }
     LMIC.txend = time;
-    if (!LMIC.fastJoinMode) {
-        LMIC.txend +=
-            // randomize join
-            // SF12:255, SF11:127, .., SF7:8secs
-            DNW2_SAFETY_ZONE+rndDelay(255>>LMIC.datarate);
-    }
+#ifndef CFG_fast_join
+    LMIC.txend +=
+        // randomize join: SF12:255, SF11:127, .., SF7:8secs
+        DNW2_SAFETY_ZONE+rndDelay(255>>LMIC.datarate);
+#else
+    LMIC.txend +=
+        DNW2_SAFETY_ZONE;
+#endif
     
     // 1 - triggers EV_JOIN_FAILED event
     return failed;
@@ -901,11 +908,10 @@ static u1_t nextJoinState (void) {
     }
     LMIC.opmode &= ~OP_NEXTCHNL;
     LMIC.txend = os_getTime();
-    if (!LMIC.fastJoinMode) {
-        // randomize join (street lamp case):
-        // SF10:16, SF9=8,..SF8C:1secs
-        rndDelay(16>>LMIC.datarate)o;
-    }
+#ifndef CFG_fast_join
+    // randomize join (street lamp case): SF10:16, SF9=8,..SF8C:1secs
+    LMIC.txend += rndDelay(16>>LMIC.datarate)o;
+#endif
     
     // 1 - triggers EV_JOIN_FAILED event
     return failed;
@@ -1990,7 +1996,7 @@ static void engineUpdate (void) {
         // Earliest possible time vs overhead to setup radio
         if( txbeg - (now + TX_RAMPUP) < 0 ) {
             // We could send right now!
-        txbeg = now;
+            txbeg = now;
             dr_t txdr = (dr_t)LMIC.datarate;
             if( jacc ) {
                 u1_t ftype;
@@ -2135,8 +2141,6 @@ void LMIC_reset (void) {
     DO_DEVDB(LMIC.ping.freq,    pingFreq);
     DO_DEVDB(LMIC.ping.dr,      pingDr);
     DO_DEVDB(LMIC.ping.intvExp, pingIntvExp);
-
-    LMIC.fastJoinMode = 0;
 }
 
 
@@ -2246,7 +2250,3 @@ void LMIC_setLinkCheckMode (bit_t enabled) {
 
 // Special APIs - for development or testing
 
-// Call before LMIC_reset, only for deveopment
-void LMIC_enableFastJoin() {
-    LMIC.fastJoinMode =  1;
-}

@@ -243,7 +243,7 @@ struct lmic_t {
     ostime_t    bcnRxtime;
     bcninfo_t   bcninfo;      // Last received beacon info
 
-    u1_t        fastJoinMode; // No random delays and dutycycle on join for development&testing
+    u1_t        noRXIQinversion;
 };
 //! \var struct lmic_t LMIC
 //! The state of LMIC MAC layer is encapsulated in this variable.
@@ -283,9 +283,6 @@ void LMIC_setLinkCheckMode (bit_t enabled);
 
 
 // Special APIs - for development or testing
-
-// Call before LMIC_reset, only for development in sealed environments
-void LMIC_enableFastJoin();
 
 
 #endif // _lmic_h_
