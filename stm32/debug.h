@@ -25,6 +25,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef _debug_h
+#define _debug_h
+
+
+#include "lib.h"
+
 // intialize debug library
 void debug_init (void);
 
@@ -61,3 +67,14 @@ void debug_valdec (const char* label, s4_t val);
 // convert integer 'val' to ASCII string (bin/oct/dec/hex/base36)
 // store string at 'buf', return number of characters written
 int debug_fmt (char* buf, int max, s4_t val, int base, int width, char pad);
+
+
+extern char dbg_sprintf_buf[];
+
+#define DBG_PRINTF(args...) \
+    sprintf(dbg_sprintf_buf, args); \
+    debug_str(dbg_sprintf_buf);
+
+
+
+#endif /* _debug_h */

@@ -27,6 +27,7 @@
 
 //! \file
 #include "lmic.h"
+//#include "debug.h"
 
 #if !defined(MINRX_SYMS)
 #define MINRX_SYMS 5
@@ -56,7 +57,6 @@
 #endif
 
 // Special APIs - for development or testing
-#define isTESTMODE() 0
 
 DEFINE_LMIC;
 DECL_ON_LMIC_EVENT;
@@ -590,6 +590,13 @@ static void initDefaultChannels (bit_t join) {
     LMIC.bands[BAND_MILLI].avail = 
     LMIC.bands[BAND_CENTI].avail =
     LMIC.bands[BAND_DECI ].avail = os_getTime();
+
+    // for fast join, use temporarily 100% bands 
+    if (join && LMIC.fastJoinMode) {
+        LMIC.bands[BAND_MILLI].txcap    = 1; 
+        LMIC.bands[BAND_CENTI].txcap    = 1; 
+        LMIC.bands[BAND_DECI].txcap    = 1; 
+    }
 }
 
 bit_t LMIC_setupBand (u1_t bandidx, s1_t txpow, u2_t txcap) {
@@ -698,14 +705,14 @@ static void setBcnRxParams (void) {
     LMIC.rps  = setIh(setNocrc(dndr2rps((dr_t)DR_BCN),1),LEN_BCN);
 }
 
+
 #define setRx1Params() /*LMIC.freq/rps remain unchanged*/
 
+
 static void initJoinLoop (void) {
-    //#if CFG_TxContinuousMode
-  LMIC.txChnl = 0;
-  //#else
-      //LMIC.txChnl = os_getRndU1() % NUM_JOIN_CHANNELS;
-  //#endif
+    LMIC.txChnl = 0;
+    //LMIC.txChnl = os_getRndU1() % NUM_JOIN_CHANNELS;
+
     LMIC.adrTxPow = 14;
     setDrJoin(DRCHG_SET, DR_SF7);
     initDefaultChannels(1);
@@ -728,21 +735,24 @@ static u1_t nextJoinState (void) {
             }
         }
     }
-    
+
     // Clear NEXTCHNL because join state engine controls channel hopping
     LMIC.opmode &= ~OP_NEXTCHNL;
+    
     // Move txend to randomize synchronized concurrent joins.
     // Duty cycle is based on txend.
     ostime_t time = os_getTime();
-    if( time - LMIC.bands[BAND_MILLI].avail < 0 )
+    if( time - LMIC.bands[BAND_MILLI].avail < 0 ) {
         time = LMIC.bands[BAND_MILLI].avail;
-    LMIC.txend = time +
-        (isTESTMODE()
-         // Avoid collision with JOIN ACCEPT @ SF12 being sent by GW (but we missed it)
-         ? DNW2_SAFETY_ZONE
-         // Otherwise: randomize join (street lamp case):
-         // SF12:255, SF11:127, .., SF7:8secs
-         : DNW2_SAFETY_ZONE+rndDelay(255>>LMIC.datarate));
+    }
+    LMIC.txend = time;
+    if (!LMIC.fastJoinMode) {
+        LMIC.txend +=
+            // randomize join
+            // SF12:255, SF11:127, .., SF7:8secs
+            DNW2_SAFETY_ZONE+rndDelay(255>>LMIC.datarate);
+    }
+    
     // 1 - triggers EV_JOIN_FAILED event
     return failed;
 }
@@ -890,13 +900,13 @@ static u1_t nextJoinState (void) {
         setDrJoin(DRCHG_SET, dr);
     }
     LMIC.opmode &= ~OP_NEXTCHNL;
-    LMIC.txend = os_getTime() +
-        (isTESTMODE()
-         // Avoid collision with JOIN ACCEPT being sent by GW (but we missed it - GW is still busy)
-         ? DNW2_SAFETY_ZONE
-         // Otherwise: randomize join (street lamp case):
-         // SF10:16, SF9=8,..SF8C:1secs
-         : rndDelay(16>>LMIC.datarate));
+    LMIC.txend = os_getTime();
+    if (!LMIC.fastJoinMode) {
+        // randomize join (street lamp case):
+        // SF10:16, SF9=8,..SF8C:1secs
+        rndDelay(16>>LMIC.datarate)o;
+    }
+    
     // 1 - triggers EV_JOIN_FAILED event
     return failed;
 }
@@ -2125,6 +2135,8 @@ void LMIC_reset (void) {
     DO_DEVDB(LMIC.ping.freq,    pingFreq);
     DO_DEVDB(LMIC.ping.dr,      pingDr);
     DO_DEVDB(LMIC.ping.intvExp, pingIntvExp);
+
+    LMIC.fastJoinMode = 0;
 }
 
 
@@ -2230,3 +2242,11 @@ void LMIC_setLinkCheckMode (bit_t enabled) {
 }
 
  
+
+
+// Special APIs - for development or testing
+
+// Call before LMIC_reset, only for deveopment
+void LMIC_enableFastJoin() {
+    LMIC.fastJoinMode =  1;
+}

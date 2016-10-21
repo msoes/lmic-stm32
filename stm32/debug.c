@@ -29,6 +29,10 @@
 #include "debug.h"
 #include "lmic.h"
 
+
+char dbg_sprintf_buf[256];
+
+
 #define LED_PORT        GPIOA // use GPIO PA8 (LED4 on IMST, P11/PPS/EXT1_10/GPS6 on Blipper)
 #define LED_PIN         8
 #define USART_TX_PORT   GPIOA
