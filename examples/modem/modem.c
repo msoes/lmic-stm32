@@ -28,6 +28,7 @@
 #include "modem.h"
 #include "hw.h"
 #include "lib.h"
+#include "imst.h"
 
 //////////////////////////////////////////////////
 // CONFIGURATION (WILL BE PATCHED)
@@ -116,14 +117,14 @@ static void blinkfunc (osjob_t* j) {
     static u1_t ledstate;
     // toggle LED
     ledstate = !ledstate;
-    leds_set(LED_SESSION, ledstate);
+    imst_led_set(LED_SESSION, ledstate);
     // reschedule blink job
     os_setTimedCallback(j, os_getTime()+ms2osticks(100), blinkfunc);
 }
 
 // switch on power led again
 static void ledfunc (osjob_t* j) {
-    leds_set(LED_POWER, 1);
+    imst_led_set(LED_POWER, 1);
 }
 
 // start transmission of prepared response or queued event message
@@ -148,7 +149,7 @@ static void modem_starttx () {
 // encode and queue event for output
 void onEvent (ev_t ev) {
     // turn LED off for a short moment
-    leds_set(LED_POWER, 0);
+    imst_led_set(LED_POWER, 0);
     os_setTimedCallback(&MODEM.ledjob, os_getTime()+ms2osticks(200), ledfunc);
 
     // update sequence counters for session
@@ -167,7 +168,7 @@ void onEvent (ev_t ev) {
 	// cancel blink job
 	os_clearCallback(&MODEM.blinkjob);
 	// switch on LED
-	leds_set(LED_SESSION, 1);
+	imst_led_set(LED_SESSION, 1);
 	// save newly established session
 	sessparam_t newsession;
 	newsession.netid = LMIC.netid;
@@ -232,8 +233,8 @@ static void modem_reset () {
     os_clearCallback(&MODEM.ledjob);   // cancel LED job
 
 
-    leds_set(LED_POWER, 1); // LED on
-    leds_set(LED_SESSION, 0); // LED off
+    imst_led_set(LED_POWER, 1); // LED on
+    imst_led_set(LED_SESSION, 0); // LED off
 
     LMIC_reset();
 
@@ -243,7 +244,7 @@ static void modem_reset () {
 	LMIC_setSession(PERSIST->sesspar.netid, PERSIST->sesspar.devaddr, PERSIST->sesspar.nwkkey, PERSIST->sesspar.artkey);
 	LMIC.seqnoDn = PERSIST->seqnoDn;
 	LMIC.seqnoUp = PERSIST->seqnoUp + 2; // avoid reuse of seq numbers
-	leds_set(LED_SESSION, 1); // LED on
+	imst_led_set(LED_SESSION, 1); // LED on
     }
 }
 
@@ -278,7 +279,7 @@ void modem_init () {
 
     persist_init(0);
 
-    leds_init();
+    imst_led_init();
 
     modem_reset();
 
@@ -372,7 +373,7 @@ void modem_rxdone (osjob_t* j) {
 		LMIC_reset();
 		LMIC_setSession(par.netid, par.devaddr, par.nwkkey, par.artkey);
 		// switch on LED
-		leds_set(LED_SESSION, 1);
+		imst_led_set(LED_SESSION, 1);
 		// save parameters
 		eeprom_copy(&PERSIST->sesspar, &par, sizeof(par));
 		eeprom_write(&PERSIST->seqnoUp, LMIC.seqnoUp);

@@ -84,10 +84,10 @@ void hal_waitUntil (u4_t time);
 
 /*
  * check and rewind timer for target time.
- *   - return 1 if target time is close
- *   - otherwise rewind timer for target time or full period and return 0
+ *   - return 0 if target time is close or very close, a few ticks ahead
+ *   - otherwise rewind timer for target time or full period and return ticks until timeout (>0 && <= 0xffff)
  */
-u1_t hal_checkTimer (u4_t targettime);
+u2_t hal_checkTimer (u4_t targettime);
 
 /*
  * perform fatal failure action.
@@ -95,5 +95,23 @@ u1_t hal_checkTimer (u4_t targettime);
  *   - action could be HALT or reboot
  */
 void hal_failed (void);
+
+
+
+/*
+ * put system and CPU in low-power mode, pass on ticks until timer interrupt is expected.
+ */
+void hal_deep_sleep (u2_t ticks);
+
+
+
+/*
+ * put system and CPU in low-power mode, sleep until interrupt.
+ */
+void hal_deep_sleep4ever (void);
+
+
+
+
 
 #endif // _hal_hpp_

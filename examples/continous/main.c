@@ -101,13 +101,14 @@ int main () {
 
 static osjob_t blinkjob;
 static u1_t ledstate = 0;
+static u2_t blinkfreq = 500;
 
 static void blinkfunc (osjob_t* j) {
     // toggle LED
     ledstate = !ledstate;
     debug_led(ledstate);
     // reschedule blink job
-    os_setTimedCallback(j, os_getTime()+ms2osticks(100), blinkfunc);
+    os_setTimedCallback(j, os_getTime()+ms2osticks(blinkfreq), blinkfunc);
 }
 
 
@@ -116,9 +117,16 @@ static void blinkfunc (osjob_t* j) {
 // UTILITY JOB
 //////////////////////////////////////////////////
 
+int idle_sleep_cnt;
+int deep_sleep_cnt;
+
+
+
 static osjob_t reportjob;
 
 static int reportcnt = 0;
+
+static u2_t reportintvlsecs = 10;
 
 // report sensor value every minute
 static void reportfunc (osjob_t* j) {
@@ -133,11 +141,19 @@ static void reportfunc (osjob_t* j) {
     LMIC.frame[1] = (reportcnt << 16)&0xff;
     LMIC.frame[2] = (reportcnt << 16)&0xff;
     LMIC.frame[3] = reportcnt&0xff;
+    LMIC.frame[4] = (idle_sleep_cnt << 24)&0xff;
+    LMIC.frame[5] = (idle_sleep_cnt << 16)&0xff;
+    LMIC.frame[6] = (idle_sleep_cnt << 16)&0xff;
+    LMIC.frame[7] = idle_sleep_cnt&0xff;
+    LMIC.frame[8] = (deep_sleep_cnt << 24)&0xff;
+    LMIC.frame[9] = (deep_sleep_cnt << 16)&0xff;
+    LMIC.frame[10] = (deep_sleep_cnt << 16)&0xff;
+    LMIC.frame[11] = deep_sleep_cnt&0xff;
     reportcnt++;
-    LMIC_setTxData2(1, LMIC.frame, 4, 0); // (port 1, 2 bytes, unconfirmed)
+    LMIC_setTxData2(1, LMIC.frame, 12, 0); // (port 1, 2 bytes, unconfirmed)
 
     // reschedule job in 60 seconds
-    os_setTimedCallback(j, os_getTime()+sec2osticks(60), reportfunc);
+    os_setTimedCallback(j, os_getTime()+sec2osticks(reportintvlsecs), reportfunc);
 }
 
 

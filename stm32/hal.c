@@ -289,21 +289,25 @@ void hal_waitUntil (u4_t time) {
     while( deltaticks(time) != 0 ); // busy wait until timestamp is reached
 }
 
+
 // check and rewind for target time
-u1_t hal_checkTimer (u4_t time) {
+u2_t hal_checkTimer (u4_t time) {
     u2_t dt;
     TIM9->SR &= ~TIM_SR_CC2IF; // clear any pending interrupts
     if((dt = deltaticks(time)) < 5) { // event is now (a few ticks ahead)
         TIM9->DIER &= ~TIM_DIER_CC2IE; // disable IE
-        return 1;
+        return 0;
     } else { // rewind timer (fully or to exact time))
         TIM9->CCR2 = TIM9->CNT + dt;   // set comparator
         TIM9->DIER |= TIM_DIER_CC2IE;  // enable IE
         TIM9->CCER |= TIM_CCER_CC2E;   // enable capture/compare uint 2
-        return 0;
+        return dt;
     }
 }
-  
+
+
+
+
 void TIM9_IRQHandler () {
     if(TIM9->SR & TIM_SR_UIF) { // overflow
         HAL.ticks++;
@@ -328,14 +332,265 @@ void hal_enableIRQs () {
     }
 }
 
-void hal_sleep () {
-    // low power sleep mode
+
+
+
+
+// -----------------------------------------------------------------------------
+// Sleep modes
+
+
+
+static void __no_operation() {
+    asm("NOP");
+}
+
+
+
+#ifndef CFG_no_low_power_sleep_mode
+
+#define BACKUP_MODER   0
+#define BACKUP_OTYPER  1
+#define BACKUP_OSPEEDR 2
+#define BACKUP_PUPDR   3
+#define BACKUP_AFR0    4
+#define BACKUP_AFR1    5
+#define BACKUP_ODR     6
+
+static u4_t GPIOA_Backup[7];
+static u4_t GPIOB_Backup[7];
+
+#define PWR_with_timer_from_LSE 1
+
+
+//! Power save on sleep by configuring clocks, peripherals, and GPIO pins.
+static void deep_sleep_before () {
+    // Explicetely disable debugging of sleep modes 
+    DBGMCU->CR &= ~(DBGMCU_CR_DBG_SLEEP | DBGMCU_CR_DBG_STOP | DBGMCU_CR_DBG_STANDBY);        
+    
+    // backup GPIO registers
+    // MODER, OTYPER, OSPEEDR, PUPD
+    GPIOA_Backup[BACKUP_MODER]   = GPIOA->MODER;
+    GPIOA_Backup[BACKUP_OTYPER]  = GPIOA->OTYPER;
+    GPIOA_Backup[BACKUP_OSPEEDR] = GPIOA->OSPEEDR;
+    GPIOA_Backup[BACKUP_PUPDR]   = GPIOA->PUPDR;
+    GPIOA_Backup[BACKUP_AFR0]    = GPIOA->AFR[0];
+    GPIOA_Backup[BACKUP_AFR1]    = GPIOA->AFR[1];
+    GPIOA_Backup[BACKUP_ODR]     = GPIOA->ODR;
+    
+    GPIOB_Backup[BACKUP_MODER]   = GPIOB->MODER;
+    GPIOB_Backup[BACKUP_OTYPER]  = GPIOB->OTYPER;
+    GPIOB_Backup[BACKUP_OSPEEDR] = GPIOB->OSPEEDR;
+    GPIOB_Backup[BACKUP_PUPDR]   = GPIOB->PUPDR;
+    GPIOB_Backup[BACKUP_AFR0]    = GPIOB->AFR[0];
+    GPIOB_Backup[BACKUP_AFR1]    = GPIOB->AFR[1];
+    GPIOB_Backup[BACKUP_ODR]     = GPIOB->ODR;
+    
+    // LEDs    
+#if !CFG_board_imst_devkit
+    // keep control of the LEDs on IMST
+    hw_cfg_pin(GPIOA, 0,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    hw_cfg_pin(GPIOA, 1,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    hw_cfg_pin(GPIOA, 3,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    hw_cfg_pin(GPIOA, 8,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+#endif  /* !CFG_board_semtech_imst */
+    
+    hw_cfg_pin(GPIOB, 6,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    
+    // JTAG						    
+    hw_cfg_pin(GPIOA,13,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOA,14,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOA,15,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB, 3,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    
+    // USB						    
+    hw_cfg_pin(GPIOA,11,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOA,12,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    
+    // SPI 2					    
+    hw_cfg_pin(GPIOB,12,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);      
+    hw_cfg_pin(GPIOB,13,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB,14,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);      
+    hw_cfg_pin(GPIOB,15,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);      
+
+#if !CFG_board_semtech_blipper
+    // I2C						    
+    hw_cfg_pin(GPIOB, 8,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);      
+    hw_cfg_pin(GPIOB, 9,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+#endif /* !CFG_board_semtech_blipper */
+
+    // UART						    
+    hw_cfg_pin(GPIOA, 9,GPIOCFG_MODE_OUT|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);      
+    hw_cfg_pin(GPIOA,10,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);      
+    
+    // -------------------- RADIO
+    // RESET 
+    hw_cfg_pin(GPIOA, 2,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);
+    // DIOx
+    hw_cfg_pin(GPIOB, 1,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB, 4,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB, 5,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB, 7,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB,10,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOB,11,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);                        
+    // RF Switches
+    hw_cfg_pin(GPIOA, 4,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);  
+    hw_cfg_pin(GPIOC,13,GPIOCFG_MODE_ANA|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_NONE);     
+    // NSS
+    hw_cfg_pin(GPIOB, 0,GPIOCFG_MODE_OUT|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_PUPD|GPIOCFG_PUPD_PUP);  
+    // SCK
+    hw_cfg_pin(GPIOA, 5,GPIOCFG_MODE_OUT|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_PUPD|GPIOCFG_PUPD_NONE);  
+    // MOSI
+    hw_cfg_pin(GPIOA, 7,GPIOCFG_MODE_OUT|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_PUPD|GPIOCFG_PUPD_NONE);    
+    // MISO
+    hw_cfg_pin(GPIOA, 6,GPIOCFG_MODE_OUT|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_PDN);  
+  
+    // Crystals
+    // HSE
+    RCC->AHBENR |= RCC_AHBENR_GPIOHEN;  
+    hw_cfg_pin(GPIOH, 0,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_PDN);
+    hw_cfg_pin(GPIOH, 1,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_PDN);
+#if PWR_with_timer_from_LSE
+    // we need to keep the LSE running
+#else    
+    // LSE
+    hw_cfg_pin(GPIOC,14,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_PDN);  
+    hw_cfg_pin(GPIOC,15,GPIOCFG_MODE_INP|GPIOCFG_OSPEED_400kHz|GPIOCFG_OTYPE_OPEN|GPIOCFG_PUPD_PDN);
+#endif
+    
+
+    // disable all peripherals which are not used in the low power sleep mode ...
+    RCC->APB1LPENR = 0x00; // disable ALL
+#if PWR_with_timer_from_LSE
+    // TIM9 is still required for waking up from low power sleep mode
+    RCC->APB2LPENR = RCC_APB2LPENR_TIM9LPEN; 
+#else    
+    RCC->APB2LPENR = 0x00; // disable ALL
+#endif    
+    //! GPIOs are still required to stop leakage
+    RCC->AHBLPENR |= RCC_AHBLPENR_GPIOALPEN | RCC_AHBLPENR_GPIOBLPEN | RCC_AHBLPENR_GPIOCLPEN | RCC_AHBLPENR_GPIOHLPEN; // required to keep the configuration for teh GPIOs
+
+    
+    // instead we enable the MSI, but we have to be careful with the frequency we are choosing ...
+    //!!! Breaks the clock we have a .5 seconds delay for the TIM 9 IRQ, probably due to oversampling which cannot cope with the 32 kHz clock source
+    //RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | RCC_ICSCR_MSIRANGE_0; // run @ 65 kHz -- BAD
+    RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | RCC_ICSCR_MSIRANGE_1;   // runs @ 130  KHz -- GOOD // power consumption is ok ~ 7.4 uA
+    //RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | RCC_ICSCR_MSIRANGE_6; // runs @ ~4   MHz -- GOOD // but power consumption is too high
+    //RCC->ICSCR = (RCC->ICSCR & ~RCC_ICSCR_MSIRANGE) | RCC_ICSCR_MSIRANGE_3; // runs @ ~520 kHz -- GOOD // but power consumption is too hight
+
+    RCC->CR |= RCC_CR_MSION;
+    while((RCC->CR & RCC_CR_MSIRDY) == 0); // wait for the MSI
+
+    // select the MSI as SYCLK
+    u4_t tmp = RCC->CFGR;
+    tmp &= ~(u4_t)RCC_CFGR_SW;
+    // tmp |= RCC_CFGR_HPRE_DIV512  | RCC_CFGR_PPRE1_DIV16 |  RCC_CFGR_PPRE2_DIV16; // scale down clocks
+    // tmp |= RCC_CFGR_PLLDIV4;
+    tmp |= RCC_CFGR_SW_MSI;
+    RCC->CFGR = tmp;
+    while((RCC->CFGR & RCC_CFGR_SWS));
+
+    
+    // disable the PLL and HSI
+    RCC->CR &= ~(RCC_CR_PLLON | RCC_CR_HSION);
+
+    // disable Flash when sleeping
+    FLASH->ACR |= FLASH_ACR_SLEEP_PD;
+}
+
+
+
+//! We are now awake and must enable the PLL and HSI
+static void deep_sleep_after () {
+    RCC->CR |= RCC_CR_HSION;
+    while((RCC->CR & RCC_CR_HSIRDY) == 0); // wait for the HSI
+    RCC->CR |= RCC_CR_PLLON;
+    while((RCC->CR & RCC_CR_PLLRDY) == 0); // wait for the PLL
+    // select the HSI as SYCLK
+    RCC->CFGR = (RCC->CFGR & ~RCC_CFGR_SW_PLL) | RCC_CFGR_SW_PLL;
+    // ready to go ...     
+
+    // peripherals enable need not take place, the non-low-power-mode registers are untouched
+    
+    // restore GPIO registers
+    GPIOA->MODER   = GPIOA_Backup[BACKUP_MODER];
+    GPIOA->OTYPER  = GPIOA_Backup[BACKUP_OTYPER];
+    GPIOA->OSPEEDR = GPIOA_Backup[BACKUP_OSPEEDR];
+    GPIOA->PUPDR   = GPIOA_Backup[BACKUP_PUPDR];
+    GPIOA->AFR[0]  = GPIOA_Backup[BACKUP_AFR0];
+    GPIOA->AFR[1]  = GPIOA_Backup[BACKUP_AFR1];
+    GPIOA->ODR     = GPIOA_Backup[BACKUP_ODR];
+        
+    GPIOB->MODER   = GPIOB_Backup[BACKUP_MODER];
+    GPIOB->OTYPER  = GPIOB_Backup[BACKUP_OTYPER];
+    GPIOB->OSPEEDR = GPIOB_Backup[BACKUP_OSPEEDR];
+    GPIOB->PUPDR   = GPIOB_Backup[BACKUP_PUPDR];
+    GPIOB->AFR[0]  = GPIOB_Backup[BACKUP_AFR0];
+    GPIOB->AFR[1]  = GPIOB_Backup[BACKUP_AFR1];
+    GPIOB->ODR     = GPIOB_Backup[BACKUP_ODR];
+    
+    // the only GPIOC pin changed (at the moment) is the RF Switch pin
+    GPIOC->BSRRH |= (1<<13);
+    hw_cfg_pin(GPIOC, 13, GPIOCFG_MODE_OUT | GPIOCFG_OSPEED_40MHz | GPIOCFG_OTYPE_PUPD | GPIOCFG_PUPD_PUP);
+}
+
+
+#endif /* CFG_no_low_power_sleep_mode */
+
+
+
+
+//! Enable low power mode
+static void hal_idle_sleep4ever() {
+    //idle_sleep_cnt += 1;
+        
 #ifndef CFG_no_low_power_sleep_mode
     PWR->CR |= PWR_CR_LPSDSR;
-#endif
-    // suspend execution until IRQ, regardless of the CPSR I-bit
+#endif /* CFG_no_low_power_sleep_mode */
     __WFI();
+
+    hal_enableIRQs();
+    __no_operation();
+    //! Scheduler loop expects IRQs to be OFF
+    hal_disableIRQs();
 }
+
+
+//! Enable ultra low power mode
+void hal_deep_sleep4ever() {
+    //deep_sleep_cnt += 1;
+    
+#ifndef CFG_no_low_power_sleep_mode
+    deep_sleep_before();
+    // Would FWU (fast wake mode) change anything in practice?
+    PWR->CR |= PWR_CR_LPSDSR | PWR_CR_ULP ;
+#endif /* CFG_no_low_power_sleep_mode */
+
+    __WFI();
+
+#ifndef CFG_no_low_power_sleep_mode    
+    deep_sleep_after();
+#endif /* CFG_no_low_power_sleep_mode */
+
+    hal_enableIRQs();
+    __no_operation();
+    //! Scheduler loop expects IRQs to be OFF
+    hal_disableIRQs();
+}
+
+
+
+
+void hal_deep_sleep (u2_t ticks) {
+    if( ticks > 100 ) {
+	hal_deep_sleep4ever();
+    } else if (ticks > 5) {
+        hal_idle_sleep4ever();
+    }
+}
+
+
+
 
 // -----------------------------------------------------------------------------
 
@@ -356,7 +611,8 @@ void hal_init () {
 void hal_failed () {
     // HALT...
     hal_disableIRQs();
-    hal_sleep();
+    //hal_sleep();
+    hal_idle_sleep4ever();
     while(1);
 }
 

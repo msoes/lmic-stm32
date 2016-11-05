@@ -33,5 +33,4 @@ void imst_led_init (void);
 
 void imst_led_set (u1_t id, u1_t state);
 
-
 #endif /* _imst_h */

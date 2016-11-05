@@ -33,9 +33,20 @@ LNOPTS = -g $(CPU) -Wl,--gc-sections -T$(LINKER_SCRIPT)
 
 
 # LMIC CONFIG
-LMICCFG += -DSTM32L1XX_MD -DCFG_DEBUG -DCFG_eu868 -DCFG_wimod_board -DCFG_sx1272_radio
-#-DCFG_fast_join
+LMICCFG += -DSTM32L1XX_MD -DCFG_DEBUG -DCFG_eu868 -DCFG_wimod_board -DCFG_sx1272_radio -DCFG_fast_join
+
+# Faster join, for development only
+LMICCFG += -DCFG_fast_join
+
+# Utility C-code
 LMICCFG += -DCFG_lib -DCFG_iobuf -DCFG_rb -DCFG_lfsr113 -DCFG_crc
+
+LMICCFG += -DCFG_board_semtech_blipper
+# LMICCFG += -DCFG_board_imst_devkit
+
+
+# Uncomment to debug and switch off sleep savings
+LMICCFG +=  -DCFG_no_low_power_sleep_mode
 
 
 LMICDIR  = ../../lmic

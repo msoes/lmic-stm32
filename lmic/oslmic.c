@@ -99,20 +99,31 @@ void os_setTimedCallback (osjob_t* job, ostime_t time, osjobcb_t cb) {
     hal_enableIRQs();
 }
 
+
+
+
 // execute jobs from timer and from run queue
 void os_runloop () {
     while(1) {
         osjob_t* j = NULL;
+        u2_t ticks = 0;
+        
         hal_disableIRQs();
         // check for runnable jobs
         if(OS.runnablejobs) {
             j = OS.runnablejobs;
             OS.runnablejobs = j->next;
-        } else if(OS.scheduledjobs && hal_checkTimer(OS.scheduledjobs->deadline)) { // check for expired timed jobs
-            j = OS.scheduledjobs;
-            OS.scheduledjobs = j->next;
+        } else if(OS.scheduledjobs) {
+            u2_t ticks = hal_checkTimer(OS.scheduledjobs->deadline);
+            if (ticks == 0) {
+                j = OS.scheduledjobs;
+                OS.scheduledjobs = j->next;
+            } else {
+                // sleep until
+                hal_deep_sleep(ticks);
+            }
         } else { // nothing pending
-            hal_sleep(); // wake by irq (timer already restarted)
+            hal_deep_sleep4ever();
         }
         hal_enableIRQs();
         if(j) { // run job callback
