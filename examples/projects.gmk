@@ -45,7 +45,7 @@ LMICCFG += -DCFG_board_semtech_blipper
 # LMICCFG += -DCFG_board_imst_devkit
 
 
-# Uncomment to debug and switch off sleep savings
+# Uncomment to debug and switch off power efficient sleep code
 LMICCFG +=  -DCFG_no_low_power_sleep_mode
 
 
